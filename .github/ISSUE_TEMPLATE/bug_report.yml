@@ -1,0 +1,50 @@
+name: Bug Report
+description: 报告签到或抽奖流程中遇到的问题
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量填写以下信息，方便定位问题。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 简要说明遇到了什么问题。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 运行环境
+      options:
+        - GitHub Actions
+        - 本地 (macOS)
+        - 本地 (Linux)
+        - 本地 (Windows / WSL)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志
+      description: 粘贴终端输出或 Actions 日志（注意脱敏，不要暴露 Cookie 或 Token）。
+      render: text
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 如何触发这个问题？
+      placeholder: |
+        1. 运行 `npm run checkin`
+        2. ...
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js 版本
+      placeholder: "20.x"

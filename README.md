@@ -91,7 +91,7 @@ GitHub Actions 的 cron 使用 UTC 时区，这个表达式对应北京时间每
 
 ## 本地运行
 
-你可以复制 `.env.example` 或 `.env.template` 为 `.env.local`，脚本会自动读取它：
+你可以复制 `.env.example` 为 `.env.local`，脚本会自动读取它：
 
 ```bash
 cp .env.example .env.local
