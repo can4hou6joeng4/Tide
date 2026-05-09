@@ -5,7 +5,9 @@
   "type": "module",
   "description": "Run Juejin daily sign-in and lottery tasks with Telegram notifications.",
   "scripts": {
-    "checkin": "node ./scripts/juejin-checkin.mjs"
+    "checkin": "node ./scripts/juejin-checkin.mjs",
+    "notify:fallback": "node ./scripts/juejin-checkin.mjs notify:fallback",
+    "test": "node --test"
   },
   "dependencies": {
     "playwright": "^1.54.2"

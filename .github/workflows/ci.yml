@@ -28,3 +28,6 @@ jobs:
 
       - name: Validate script syntax
         run: node --check scripts/juejin-checkin.mjs
+
+      - name: Run tests
+        run: npm test

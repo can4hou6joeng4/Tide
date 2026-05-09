@@ -3,3 +3,5 @@ node_modules/
 .env.*.local
 .playwright-cli/
 .DS_Store
+juejin-run-summary.json
+.telegram-notification-sent
