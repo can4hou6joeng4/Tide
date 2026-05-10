@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -9,6 +10,7 @@ const DEFAULT_USER_AGENT =
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const LOCAL_ENV_PATH = path.join(PROJECT_ROOT, ".env.local");
+const DEBUG_DIR = path.join(PROJECT_ROOT, "debug");
 
 function stripQuotes(value) {
   if (
@@ -266,6 +268,34 @@ async function ensurePageHealthy(page, expectedTitle) {
   }
 }
 
+async function captureDiagnostics(page, label) {
+  if (!page) {
+    return;
+  }
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const base = path.join(DEBUG_DIR, `${label}-${stamp}`);
+  await mkdir(DEBUG_DIR, { recursive: true }).catch(() => {});
+
+  let url = "";
+  try {
+    url = page.url();
+  } catch {}
+  await writeFile(`${base}.url.txt`, url || "(unavailable)").catch(() => {});
+
+  if (typeof page.isClosed === "function" && page.isClosed()) {
+    return;
+  }
+
+  await page
+    .screenshot({ path: `${base}.png`, fullPage: true })
+    .catch(() => {});
+  await page
+    .content()
+    .then((html) => writeFile(`${base}.html`, html))
+    .catch(() => {});
+}
+
 async function createBrowserContext() {
   const cookie = getRequiredEnv("JUEJIN_COOKIE");
   const headless = parseBooleanEnv("JUEJIN_HEADLESS", false);
@@ -382,8 +412,11 @@ async function runCheckIn(context, summary) {
       counts: countsAfter
     };
     console.log(summary.checkIn.message);
+  } catch (error) {
+    await captureDiagnostics(page, "checkin");
+    throw error;
   } finally {
-    await page.close();
+    await page.close().catch(() => {});
   }
 }
 
@@ -445,8 +478,11 @@ async function runLottery(context, summary) {
       freeCountAfter
     };
     console.log(summary.lottery.message);
+  } catch (error) {
+    await captureDiagnostics(page, "lottery");
+    throw error;
   } finally {
-    await page.close();
+    await page.close().catch(() => {});
   }
 }
 
