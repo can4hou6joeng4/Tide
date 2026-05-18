@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -9,6 +10,7 @@ const DEFAULT_USER_AGENT =
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const LOCAL_ENV_PATH = path.join(PROJECT_ROOT, ".env.local");
+const DEBUG_DIR = path.join(PROJECT_ROOT, "debug");
 
 function stripQuotes(value) {
   if (
@@ -297,6 +299,10 @@ async function ensurePageHealthy(page, expectedTitle) {
   const title = await page.title();
   const bodyText = await page.evaluate(() => document.body?.innerText || "");
 
+  if (!title.trim() && !bodyText.trim()) {
+    throw new Error(`Juejin page rendered empty: ${page.url()}`);
+  }
+
   if (expectedTitle && !title.includes(expectedTitle)) {
     throw new Error(`Unexpected Juejin page title: ${title}`);
   }
@@ -304,6 +310,34 @@ async function ensurePageHealthy(page, expectedTitle) {
   if (/访问异常，请稍后再试|前往申诉|与稀土掘金运营同学联系/i.test(bodyText)) {
     throw new Error(`Juejin blocked the browser session: ${bodyText.slice(0, 120)}`);
   }
+}
+
+async function captureDiagnostics(page, label) {
+  if (!page) {
+    return;
+  }
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const base = path.join(DEBUG_DIR, `${label}-${stamp}`);
+  await mkdir(DEBUG_DIR, { recursive: true }).catch(() => {});
+
+  let url = "";
+  try {
+    url = page.url();
+  } catch {}
+  await writeFile(`${base}.url.txt`, url || "(unavailable)").catch(() => {});
+
+  if (typeof page.isClosed === "function" && page.isClosed()) {
+    return;
+  }
+
+  await page
+    .screenshot({ path: `${base}.png`, fullPage: true })
+    .catch(() => {});
+  await page
+    .content()
+    .then((html) => writeFile(`${base}.html`, html))
+    .catch(() => {});
 }
 
 async function createBrowserContext() {
@@ -427,8 +461,11 @@ async function runCheckIn(context, summary) {
       counts: countsAfter
     };
     console.log(summary.checkIn.message);
+  } catch (error) {
+    await captureDiagnostics(page, "checkin");
+    throw error;
   } finally {
-    await page.close();
+    await page.close().catch(() => {});
   }
 }
 
@@ -495,8 +532,11 @@ async function runLottery(context, summary) {
       freeCountAfter
     };
     console.log(summary.lottery.message);
+  } catch (error) {
+    await captureDiagnostics(page, "lottery");
+    throw error;
   } finally {
-    await page.close();
+    await page.close().catch(() => {});
   }
 }
 
@@ -591,6 +631,10 @@ function buildLotteryLines(summary) {
 
   if (lottery.status === "success" && freeCountAfter !== null) {
     lines.push(`• 剩余免费次数：${freeCountAfter}`);
+  }
+
+  if (lottery.status === "failed" && lottery.errorMessage) {
+    lines.push(`• 异常：${escapeHtml(truncateText(lottery.errorMessage, 180))}`);
   }
 
   return lines;
@@ -729,7 +773,6 @@ async function runWorkflowWithDependencies({
   try {
     ({ browser, context } = await createContext());
     await runCheckInTask(context, summary);
-    await runLotteryTask(context, summary);
   } catch (error) {
     summary.status = "failed";
     summary.errorMessage = error instanceof Error ? error.message : String(error);
@@ -737,10 +780,24 @@ async function runWorkflowWithDependencies({
       status: "failed",
       message: "未完成"
     };
-  } finally {
-    await context?.close().catch(() => {});
-    await browser?.close().catch(() => {});
   }
+
+  if (summary.status === "success") {
+    try {
+      await runLotteryTask(context, summary);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      summary.lottery = {
+        status: "failed",
+        message: "抽奖未完成，签到已成功",
+        errorMessage
+      };
+      console.warn(`抽奖失败，签到已完成：${errorMessage}`);
+    }
+  }
+
+  await context?.close().catch(() => {});
+  await browser?.close().catch(() => {});
 
   await recordRunSummary(summary);
 
@@ -794,6 +851,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 export {
   buildDefaultSummary,
   buildTelegramMessage,
+  ensurePageHealthy,
   runFallbackNotification,
   runWorkflow,
   runWorkflowWithDependencies

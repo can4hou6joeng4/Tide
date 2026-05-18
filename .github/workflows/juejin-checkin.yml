@@ -40,8 +40,8 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_MESSAGE_THREAD_ID: ${{ vars.TELEGRAM_MESSAGE_THREAD_ID }}
-          JUEJIN_HEADLESS: "false"
-        run: xvfb-run -a npm run checkin
+          JUEJIN_HEADLESS: "true"
+        run: npm run checkin
 
       - name: Send fallback Telegram notification
         if: failure()
@@ -53,3 +53,12 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: npm run notify:fallback
+
+      - name: Upload debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: juejin-debug-${{ github.run_id }}-${{ github.run_attempt }}
+          path: debug/
+          if-no-files-found: ignore
+          retention-days: 7

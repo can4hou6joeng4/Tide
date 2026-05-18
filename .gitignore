@@ -2,6 +2,7 @@ node_modules/
 .env.local
 .env.*.local
 .playwright-cli/
+debug/
 .DS_Store
 juejin-run-summary.json
 .telegram-notification-sent
