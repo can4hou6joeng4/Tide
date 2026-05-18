@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -70,6 +70,31 @@ function getRequiredEnv(name) {
   }
 
   return value;
+}
+
+function getSummaryPath() {
+  return getEnv("JUEJIN_SUMMARY_PATH") || path.join(PROJECT_ROOT, "juejin-run-summary.json");
+}
+
+function getNotificationMarkerPath() {
+  return getEnv("JUEJIN_NOTIFICATION_SENT_PATH") || path.join(PROJECT_ROOT, ".telegram-notification-sent");
+}
+
+async function recordSummary(summary) {
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    summary
+  };
+
+  writeFileSync(getSummaryPath(), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+
+async function markNotificationSent() {
+  writeFileSync(getNotificationMarkerPath(), `${new Date().toISOString()}\n`, "utf8");
+}
+
+function hasNotificationSent() {
+  return existsSync(getNotificationMarkerPath());
 }
 
 function toNumber(value) {
@@ -234,6 +259,21 @@ function buildDefaultSummary() {
   };
 }
 
+function capturePromise(promise) {
+  return promise.then(
+    (value) => ({ status: "fulfilled", value }),
+    (reason) => ({ status: "rejected", reason })
+  );
+}
+
+function unwrapCaptured(result) {
+  if (result.status === "fulfilled") {
+    return result.value;
+  }
+
+  throw result.reason;
+}
+
 async function waitForJuejinResponse(page, { pathname, method = "GET", timeout = 45000 }) {
   const response = await page.waitForResponse(
     (candidate) => {
@@ -258,6 +298,10 @@ async function waitForJuejinResponse(page, { pathname, method = "GET", timeout =
 async function ensurePageHealthy(page, expectedTitle) {
   const title = await page.title();
   const bodyText = await page.evaluate(() => document.body?.innerText || "");
+
+  if (!title.trim() && !bodyText.trim()) {
+    throw new Error(`Juejin page rendered empty: ${page.url()}`);
+  }
 
   if (expectedTitle && !title.includes(expectedTitle)) {
     throw new Error(`Unexpected Juejin page title: ${title}`);
@@ -342,9 +386,11 @@ async function runCheckIn(context, summary) {
   const page = await context.newPage();
 
   try {
-    const todayStatusPromise = waitForJuejinResponse(page, {
-      pathname: "/growth_api/v2/get_today_status"
-    });
+    const todayStatusPromise = capturePromise(
+      waitForJuejinResponse(page, {
+        pathname: "/growth_api/v2/get_today_status"
+      })
+    );
     const countsPromise = waitForJuejinResponse(page, {
       pathname: "/growth_api/v1/get_counts"
     }).catch(() => null);
@@ -362,7 +408,7 @@ async function runCheckIn(context, summary) {
     const button = page.getByRole("button", { name: /立即签到|今日已签到/ }).first();
     await button.waitFor({ state: "visible", timeout: 30000 });
 
-    const todayStatus = await todayStatusPromise;
+    const todayStatus = unwrapCaptured(await todayStatusPromise);
     const initialCounts = await countsPromise;
     const initialPoint = await pointPromise;
 
@@ -381,10 +427,12 @@ async function runCheckIn(context, summary) {
       return;
     }
 
-    const checkInResponsePromise = waitForJuejinResponse(page, {
-      pathname: "/growth_api/v1/check_in",
-      method: "POST"
-    });
+    const checkInResponsePromise = capturePromise(
+      waitForJuejinResponse(page, {
+        pathname: "/growth_api/v1/check_in",
+        method: "POST"
+      })
+    );
     const countsAfterPromise = waitForJuejinResponse(page, {
       pathname: "/growth_api/v1/get_counts"
     }).catch(() => initialCounts);
@@ -394,11 +442,12 @@ async function runCheckIn(context, summary) {
 
     await button.click();
 
-    const [checkInData, countsAfter, pointAfter] = await Promise.all([
+    const [checkInResult, countsAfter, pointAfter] = await Promise.all([
       checkInResponsePromise,
       countsAfterPromise,
       pointAfterPromise
     ]);
+    const checkInData = unwrapCaptured(checkInResult);
 
     const nextPoint = toNumber(pointAfter);
     if (nextPoint !== null) {
@@ -424,9 +473,11 @@ async function runLottery(context, summary) {
   const page = await context.newPage();
 
   try {
-    const configPromise = waitForJuejinResponse(page, {
-      pathname: "/growth_api/v1/lottery_config/get"
-    });
+    const configPromise = capturePromise(
+      waitForJuejinResponse(page, {
+        pathname: "/growth_api/v1/lottery_config/get"
+      })
+    );
 
     await page.goto("https://juejin.cn/user/center/lottery", {
       waitUntil: "domcontentloaded",
@@ -435,7 +486,7 @@ async function runLottery(context, summary) {
     await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
     await ensurePageHealthy(page, "幸运抽奖");
 
-    const config = await configPromise;
+    const config = unwrapCaptured(await configPromise);
     const freeCount = toNumber(config?.free_count) ?? 0;
     const pointCost = toNumber(config?.point_cost);
 
@@ -450,10 +501,12 @@ async function runLottery(context, summary) {
       return;
     }
 
-    const drawResponsePromise = waitForJuejinResponse(page, {
-      pathname: "/growth_api/v1/lottery/draw",
-      method: "POST"
-    });
+    const drawResponsePromise = capturePromise(
+      waitForJuejinResponse(page, {
+        pathname: "/growth_api/v1/lottery/draw",
+        method: "POST"
+      })
+    );
     const configAfterPromise = waitForJuejinResponse(page, {
       pathname: "/growth_api/v1/lottery_config/get"
     }).catch(() => config);
@@ -468,7 +521,8 @@ async function runLottery(context, summary) {
       target.click();
     });
 
-    const [drawData, nextConfig] = await Promise.all([drawResponsePromise, configAfterPromise]);
+    const [drawResult, nextConfig] = await Promise.all([drawResponsePromise, configAfterPromise]);
+    const drawData = unwrapCaptured(drawResult);
     const freeCountAfter = toNumber(nextConfig?.free_count);
 
     summary.lottery = {
@@ -579,6 +633,10 @@ function buildLotteryLines(summary) {
     lines.push(`• 剩余免费次数：${freeCountAfter}`);
   }
 
+  if (lottery.status === "failed" && lottery.errorMessage) {
+    lines.push(`• 异常：${escapeHtml(truncateText(lottery.errorMessage, 180))}`);
+  }
+
   return lines;
 }
 
@@ -665,15 +723,56 @@ async function sendTelegramNotification(summary) {
   console.log("Telegram 通知发送成功。");
 }
 
-async function runWorkflow() {
-  const summary = buildDefaultSummary();
+function readRecordedSummary() {
+  const summaryPath = getSummaryPath();
+
+  if (!existsSync(summaryPath)) {
+    return {
+      status: "failed",
+      checkIn: null,
+      lottery: null,
+      points: null,
+      errorMessage: "主任务失败，且未找到运行摘要文件。"
+    };
+  }
+
+  const payload = JSON.parse(readFileSync(summaryPath, "utf8"));
+  return payload.summary ?? payload;
+}
+
+async function runFallbackNotification() {
+  if (hasNotificationSent()) {
+    console.log("Telegram 通知已由主任务发送，跳过兜底通知。");
+    return;
+  }
+
+  const summary = readRecordedSummary();
+
+  if (summary.status !== "failed") {
+    summary.status = "failed";
+    summary.errorMessage ||= "GitHub Actions 主任务失败，触发 workflow 级兜底通知。";
+  }
+
+  await sendTelegramNotification(summary);
+  await markNotificationSent();
+}
+
+async function runWorkflowWithDependencies({
+  createBrowserContext: createContext,
+  runCheckIn: runCheckInTask,
+  runLottery: runLotteryTask,
+  sendTelegramNotification: sendNotification,
+  recordSummary: recordRunSummary = recordSummary,
+  markNotificationSent: markSent = markNotificationSent,
+  buildDefaultSummary: buildSummary = buildDefaultSummary
+}) {
+  const summary = buildSummary();
   let browser;
   let context;
 
   try {
-    ({ browser, context } = await createBrowserContext());
-    await runCheckIn(context, summary);
-    await runLottery(context, summary);
+    ({ browser, context } = await createContext());
+    await runCheckInTask(context, summary);
   } catch (error) {
     summary.status = "failed";
     summary.errorMessage = error instanceof Error ? error.message : String(error);
@@ -681,13 +780,30 @@ async function runWorkflow() {
       status: "failed",
       message: "未完成"
     };
-  } finally {
-    await context?.close().catch(() => {});
-    await browser?.close().catch(() => {});
   }
 
+  if (summary.status === "success") {
+    try {
+      await runLotteryTask(context, summary);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      summary.lottery = {
+        status: "failed",
+        message: "抽奖未完成，签到已成功",
+        errorMessage
+      };
+      console.warn(`抽奖失败，签到已完成：${errorMessage}`);
+    }
+  }
+
+  await context?.close().catch(() => {});
+  await browser?.close().catch(() => {});
+
+  await recordRunSummary(summary);
+
   try {
-    await sendTelegramNotification(summary);
+    await sendNotification(summary);
+    await markSent();
   } catch (notificationError) {
     console.error(
       `Telegram 通知失败：${notificationError instanceof Error ? notificationError.message : String(notificationError)}`
@@ -705,7 +821,38 @@ async function runWorkflow() {
   }
 }
 
-runWorkflow().catch((error) => {
-  console.error(`任务失败：${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 1;
-});
+async function runWorkflow() {
+  return runWorkflowWithDependencies({
+    createBrowserContext,
+    runCheckIn,
+    runLottery,
+    sendTelegramNotification,
+    recordSummary,
+    markNotificationSent,
+    buildDefaultSummary
+  });
+}
+
+async function runCli() {
+  if (process.argv[2] === "notify:fallback") {
+    return runFallbackNotification();
+  }
+
+  return runWorkflow();
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runCli().catch((error) => {
+    console.error(`任务失败：${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  });
+}
+
+export {
+  buildDefaultSummary,
+  buildTelegramMessage,
+  ensurePageHealthy,
+  runFallbackNotification,
+  runWorkflow,
+  runWorkflowWithDependencies
+};

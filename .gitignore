@@ -4,3 +4,5 @@ node_modules/
 .playwright-cli/
 debug/
 .DS_Store
+juejin-run-summary.json
+.telegram-notification-sent
