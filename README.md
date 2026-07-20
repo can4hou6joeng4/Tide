@@ -1,169 +1,137 @@
-# 掘金每日签到 / 抽奖 / Telegram 通知
+<h1 align="center">Tide</h1>
 
-这个仓库提供了一个可直接运行在 GitHub Actions 上的掘金每日自动任务，包含：
+<p align="center"><em>如潮汐般守时 —— 掘金每日签到 · 免费抽奖 · Telegram 播报</em></p>
 
-- 每日签到
-- 免费抽奖
-- 执行结果通知到 Telegram
+<p align="center">
+  <a href="https://github.com/can4hou6joeng4/Tide/actions/workflows/juejin-checkin.yml"><img src="https://img.shields.io/github/actions/workflow/status/can4hou6joeng4/Tide/juejin-checkin.yml?style=flat-square&label=daily%20run" alt="daily run"></a>
+  <img src="https://img.shields.io/github/stars/can4hou6joeng4/Tide?style=flat-square" alt="stars">
+  <img src="https://img.shields.io/github/license/can4hou6joeng4/Tide?style=flat-square" alt="license">
+  <img src="https://img.shields.io/github/commit-activity/m/can4hou6joeng4/Tide?style=flat-square" alt="commit activity">
+  <img src="https://img.shields.io/badge/node-%E2%89%A520-339933?style=flat-square&logo=node.js&logoColor=white" alt="node">
+  <img src="https://img.shields.io/badge/playwright-chromium-45ba4b?style=flat-square" alt="playwright">
+</p>
 
-当前实现基于浏览器自动化，而不是直接调用掘金接口。原因是掘金接口现在会校验运行时生成的风控参数，直接在 Node 里发请求容易拿到空响应或被拦截；浏览器态实测可正常完成签到和抽奖。
+## 为什么叫 Tide
 
-## 仓库协作
+潮汐每天准时涨落,从不缺席。Tide 也一样:每天 09:14 准时出海,替你完成掘金签到与免费抽奖,把收成播报到 Telegram;失败了会自己留下线索、发出警报,并保证第二天照常涨潮。
 
-- 日常开发、分支命名和本地验证命令见 `CONTRIBUTING.md`
-- 建议通过 GitHub Pull Request 合入改动，并在 PR 中附上验证结果
-- 默认分支是 `main`，日常改动建议从 `main` 拉出功能分支后再通过 PR 合并
-- 非紧急情况不建议把功能分支内容直接同步覆盖到 `main`
+Tide 是航海家族的一员:[Harbor](https://github.com/can4hou6joeng4/Harbor) 让知识停泊,[Beacon](https://github.com/can4hou6joeng4/Beacon) 在过期前预警,[Atlas](https://github.com/can4hou6joeng4/Atlas) 丈量每段航程,而 Tide 守护每日的节律。
 
-## 仓库内容
+## 功能特性
 
-- `scripts/juejin-checkin.mjs`
-  - 使用 Playwright 打开掘金页面，完成签到、免费抽奖，并发送 Telegram 通知。
-- `.github/workflows/juejin-checkin.yml`
-  - 每天定时执行任务，同时支持手动触发。
+- ⚓ **每日签到** — 自动完成掘金每日签到,已签过会识别并跳过
+- 🎰 **免费抽奖** — 仅在当天有免费次数时抽,不消耗矿石;抽奖失败不影响签到结果
+- 📣 **Telegram 播报** — 矿石、连签天数、奖品一目了然;完全可选,支持群组话题
+- 🛟 **失败兜底** — 主流程失败时仍会发出兜底通知,并把页面截图/HTML 上传到 Actions artifacts 供排查
+- 🔁 **永不搁浅** — 每次运行自动重置 GitHub「60 天不活跃即停用定时任务」的计时器,无需人工保活
+
+## 工作原理
+
+```text
+cron 09:14 (UTC+8) ─▶ GitHub Actions ─▶ Playwright 无头 Chromium(带反自动化检测缓解)
+                                           ├─ 签到页:读取今日状态 → 点击签到 → 校验接口响应
+                                           └─ 抽奖页:有免费次数才抽
+                                                │
+                          运行摘要 juejin-run-summary.json
+                                                │
+                      ├─ 成功 ─▶ Telegram 播报(未配置则跳过)
+                      ├─ 失败 ─▶ notify:fallback 兜底通知 + debug 快照 artifact
+                      └─ 收尾 ─▶ keepalive 重置 60 天停用计时器
+```
+
+当前实现基于浏览器自动化而不是直接调用掘金接口:掘金接口会校验运行时生成的风控参数,直接在 Node 里发请求容易拿到空响应或被拦截;浏览器态实测可正常完成签到和抽奖。
+
+## 快速开始(GitHub Actions 部署)
+
+1. Fork 本仓库。
+2. 进入 `Settings -> Secrets and variables -> Actions`。
+3. 新建仓库 Secret:`JUEJIN_COOKIE`,粘贴浏览器登录掘金后的完整 Cookie。
+4. 如需 Telegram 通知,再新增两个 Secret:`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`。
+5. 群组话题场景可在 `Variables` 里新增 `TELEGRAM_MESSAGE_THREAD_ID`;需要自定义浏览器标识时再新增 `JUEJIN_USER_AGENT`。
+6. 进入 `Actions -> Juejin Daily Automation`,手动执行一次确认配置正确。
 
 ## 环境变量
 
-实际运行时只需要下面这些变量：
+| 变量 | 必填 | 说明 |
+|---|---|---|
+| `JUEJIN_COOKIE` | ✅ | 掘金登录态的完整 Cookie |
+| `TELEGRAM_BOT_TOKEN` | 可选 | 启用通知时与 `TELEGRAM_CHAT_ID` 成对提供 |
+| `TELEGRAM_CHAT_ID` | 可选 | 同上 |
+| `TELEGRAM_MESSAGE_THREAD_ID` | 可选 | 仅发到 Telegram 群组话题时需要 |
+| `JUEJIN_USER_AGENT` | 可选 | 覆盖默认浏览器标识 |
+| `JUEJIN_HEADLESS` | 可选 | 本地默认 `false`(有头便于观察);GitHub Actions 上以 `true` 无头运行 |
 
-- 必填：`JUEJIN_COOKIE`
-- Telegram 可选：`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`
-- 仅在 Telegram 群组话题里发消息时可选：`TELEGRAM_MESSAGE_THREAD_ID`
-- 调试或兼容性用途可选：`JUEJIN_USER_AGENT`、`JUEJIN_HEADLESS`
-
-说明：
-
-- 如果不需要 Telegram 通知，可以完全不传任何 `TELEGRAM_*` 变量。
-- 如果要启用 Telegram 通知，`TELEGRAM_BOT_TOKEN` 和 `TELEGRAM_CHAT_ID` 必须成对提供。
-- 可选变量不需要在 `.env.local` 里预留空行或空值，不写就行。
-
-## GitHub 使用方式
-
-1. 在 GitHub 仓库中进入 `Settings -> Secrets and variables -> Actions`。
-2. 新建仓库 Secret：`JUEJIN_COOKIE`
-3. 将浏览器里登录掘金后的完整 Cookie 复制进去保存。
-4. 如果要启用 Telegram 通知，再新增两个 Secret：
-   - `TELEGRAM_BOT_TOKEN`
-   - `TELEGRAM_CHAT_ID`
-5. 如果你的 Telegram 群组启用了话题，可在 `Variables` 里新增 `TELEGRAM_MESSAGE_THREAD_ID`
-6. 如果你确实需要自定义浏览器标识，可在 `Variables` 里新增 `JUEJIN_USER_AGENT`
-7. 进入 `Actions -> Juejin Daily Automation`，先手动执行一次确认配置正确。
-
-## 可选配置
-
-- `JUEJIN_USER_AGENT`
-  - 只有你明确需要覆盖默认浏览器标识时再设置。
-- `TELEGRAM_MESSAGE_THREAD_ID`
-  - 只有你要把消息发到 Telegram 群组 topic 时再设置。
-- `JUEJIN_HEADLESS`
-  - 仅在你明确需要无头模式时设置为 `true`。默认不建议开启，因为掘金更容易识别并拦截无头浏览器。
+不需要 Telegram 通知时,所有 `TELEGRAM_*` 变量都可以不传,脚本会跳过通知环节,不影响签到和抽奖主流程。
 
 ## Telegram 配置
 
-### 1. 创建机器人
-
-在 Telegram 里找到 `@BotFather`，创建一个 bot，拿到 `TELEGRAM_BOT_TOKEN`。
-
-### 2. 获取 `chat_id`
-
-- 发给机器人私聊消息后，通过 `getUpdates` 获取私聊 `chat_id`
-- 或者把机器人拉进群组，发送一条消息后再通过 `getUpdates` 查看群组 `chat_id`
-
-你可以在浏览器里访问下面这个地址查看更新结果：
+1. **创建机器人**:在 Telegram 里找 `@BotFather` 创建 bot,拿到 `TELEGRAM_BOT_TOKEN`。
+2. **获取 `chat_id`**:给机器人发一条私聊消息(或把它拉进群组后发言),然后在浏览器访问:
 
 ```text
 https://api.telegram.org/bot<你的BOT_TOKEN>/getUpdates
 ```
 
-如果你使用群组 topic，还可以从返回结果里拿到 `message_thread_id`，再填到 `TELEGRAM_MESSAGE_THREAD_ID`。
+私聊、群组的 `chat_id` 都能在返回结果里找到;如果使用群组话题,同一结果里还能拿到 `message_thread_id`,填入 `TELEGRAM_MESSAGE_THREAD_ID`。
 
-## 默认调度时间
+## 调度时间与 keepalive
 
-工作流默认使用下面的 cron：
+工作流默认 cron 为 `14 1 * * *`(UTC),即北京时间每天 `09:14`;修改 `.github/workflows/juejin-checkin.yml` 里的 `schedule` 即可调整。
 
-```yaml
-14 1 * * *
-```
-
-GitHub Actions 的 cron 使用 UTC 时区，这个表达式对应北京时间每天 `09:14`。
-
-如果你想修改执行时间，只需要改 `.github/workflows/juejin-checkin.yml` 里的 `schedule`。
+GitHub 会自动停用超过 60 天没有提交的仓库中的定时任务。Tide 在每次运行结束时(无论成败)调用 workflow enable API 重置这个计时器,因此长期没有新提交也不会停摆。
 
 ## 本地运行
 
-你可以复制 `.env.example` 为 `.env.local`，脚本会自动读取它：
-
-```bash
-cp .env.example .env.local
-```
-
-最小可用的 `.env.local` 只需要：
-
-```env
-JUEJIN_COOKIE=你的完整Cookie
-```
-
-如果你也要本地测试 Telegram 通知，再额外补上：
-
-```env
-JUEJIN_COOKIE=你的完整Cookie
-TELEGRAM_BOT_TOKEN=你的BOT_TOKEN
-TELEGRAM_CHAT_ID=你的CHAT_ID
-```
-
-只有在这些场景下才需要继续加变量：
-
-```env
-# 发到 Telegram 群组 topic
-TELEGRAM_MESSAGE_THREAD_ID=
-
-# 覆盖默认浏览器标识
-JUEJIN_USER_AGENT=
-
-# 默认就是 false，不写也可以
-JUEJIN_HEADLESS=false
-```
-
-然后执行：
-
-```bash
-npm run checkin
-```
-
-如果你在 Linux 服务器或没有桌面环境的环境里本地跑，推荐用：
-
-```bash
-xvfb-run -a npm run checkin
-```
-
-如果你不想用 `.env.local`，也可以直接通过命令行传最小变量：
-
-```bash
-JUEJIN_COOKIE='你的完整Cookie' \
-npm run checkin
-```
-
-如果要临时测试 Telegram 通知，再追加：
-
-```bash
-JUEJIN_COOKIE='你的完整Cookie' \
-TELEGRAM_BOT_TOKEN='你的BOT_TOKEN' \
-TELEGRAM_CHAT_ID='你的CHAT_ID' \
-npm run checkin
-```
-
-第一次运行前需要先安装依赖和浏览器：
+第一次运行前安装依赖和浏览器:
 
 ```bash
 npm install
 npx playwright install chromium
 ```
 
+复制 `.env.example` 为 `.env.local` 并填入 Cookie(脚本会自动读取):
+
+```bash
+cp .env.example .env.local
+```
+
+最小可用配置只需要一行:
+
+```env
+JUEJIN_COOKIE=你的完整Cookie
+```
+
+然后执行:
+
+```bash
+npm run checkin
+```
+
+本地默认以有头模式运行,便于观察流程;在没有桌面环境的 Linux 上可以用 `xvfb-run -a npm run checkin`,或设置 `JUEJIN_HEADLESS=true` 直接无头运行。也可以不用 `.env.local`,直接通过命令行传变量:
+
+```bash
+JUEJIN_COOKIE='你的完整Cookie' npm run checkin
+```
+
+## 技术栈
+
+- **Node.js 20+** — 脚本运行时,单元测试用原生 `node:test`
+- **Playwright** — Chromium 浏览器自动化与接口响应校验
+- **GitHub Actions** — 定时调度、PR CI 校验、失败快照 artifacts
+- **Telegram Bot API** — 执行结果播报
+
 ## 注意事项
 
-- Cookie 失效后，GitHub Action 会执行失败，此时更新 `JUEJIN_COOKIE` 即可。
-- 签到接口依赖你的掘金登录态，建议直接复制浏览器请求里的完整 Cookie，避免缺字段。
-- 免费抽奖只有在当天还有免费次数时才会执行，不会消耗矿石做付费抽奖。
-- `.env.local` 可以只保留你实际需要的字段，不需要把所有可选变量都写进去。
-- Telegram 通知未配置时，脚本会跳过通知，不影响签到和抽奖主流程。
-- GitHub Actions 里任务会在 `xvfb-run` 下以有头浏览器模式运行，这是为了降低掘金风控拦截概率。
+- Cookie 失效后 GitHub Action 会执行失败并发出兜底通知,更新 `JUEJIN_COOKIE` Secret 即可恢复。
+- 建议直接复制浏览器请求里的完整 Cookie,避免缺字段导致登录态不完整。
+- 免费抽奖只有在当天还有免费次数时才会执行,不会消耗矿石做付费抽奖。
+- GitHub Actions 上以无头模式运行,并启用了降低风控识别概率的浏览器参数;如果仍被拦截,可从失败运行的 debug artifacts(截图/HTML)排查。
+- 运行摘要会写入 `juejin-run-summary.json`(已在 `.gitignore` 中),兜底通知靠它判断是否需要补发。
+
+## 参与开发
+
+代码集中在 `scripts/juejin-checkin.mjs`,单元测试在 `test/`;PR 会触发 CI(YAML 校验 + 语法检查 + 单元测试)。分支命名、提交规范和本地验证流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## License
+
+[MIT](LICENSE)

@@ -39,12 +39,13 @@ Recommended checks before opening a pull request:
 
 ```bash
 node --check scripts/juejin-checkin.mjs
+npm test
 npm run checkin
 ```
 
 ## Git Workflow
 
-1. Branch from `main` using a descriptive name such as `codex/juejin-telegram-template`.
+1. Branch from `main` using a descriptive name such as `fix/lottery-best-effort`.
 2. Keep secrets only in local env files or GitHub Secrets. Do not commit real cookies or bot tokens.
 3. Update documentation whenever behavior, environment variables, or workflows change.
 4. Include validation results in your pull request description.
@@ -73,7 +74,8 @@ ci: 新增 GitHub Actions 定时任务
 
 ## GitHub Actions Notes
 
-- Pull requests run a lightweight CI workflow that installs dependencies, validates workflow YAML, and checks script syntax.
+- Pull requests run a lightweight CI workflow that installs dependencies, validates workflow YAML, checks script syntax, and runs unit tests.
 - The workflow runs on `ubuntu-latest`.
 - Playwright Chromium is installed at runtime.
-- The task uses `xvfb-run` with `JUEJIN_HEADLESS=false` to reduce anti-bot blocking risk.
+- The daily task runs headless (`JUEJIN_HEADLESS=true`) with anti-automation mitigations; on failure it uploads debug snapshots (screenshot and HTML) as artifacts.
+- Every run resets GitHub's 60-day inactivity timer for scheduled workflows via the workflow enable API.
