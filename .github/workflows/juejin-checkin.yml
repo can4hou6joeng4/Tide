@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: juejin-daily-checkin
@@ -62,3 +63,10 @@ jobs:
           path: debug/
           if-no-files-found: ignore
           retention-days: 7
+
+      # 调用 enable 重置 GitHub 60 天不活跃自动停用 schedule 的计时器
+      - name: Keep scheduled workflow alive
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT repos/${{ github.repository }}/actions/workflows/juejin-checkin.yml/enable
