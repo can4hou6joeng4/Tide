@@ -15,7 +15,7 @@
 
 潮汐每天准时涨落,从不缺席。Tide 也一样:每天 09:14 准时出海,替你完成掘金签到与免费抽奖,把收成播报到 Telegram;失败了会自己留下线索、发出警报,并保证第二天照常涨潮。
 
-Tide 是航海家族的一员:[Harbor](https://github.com/can4hou6joeng4/Harbor) 让知识停泊,[Beacon](https://github.com/can4hou6joeng4/Beacon) 在过期前预警,[Atlas](https://github.com/can4hou6joeng4/Atlas) 丈量每段航程,而 Tide 守护每日的节律。
+相关项目：[Buoy](https://github.com/can4hou6joeng4/Buoy) —— AnyRouter 多账号自动签到。
 
 ## 功能特性
 
