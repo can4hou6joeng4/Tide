@@ -149,7 +149,12 @@ function truncateText(value, maxLength = 600) {
 }
 
 function parseCookieString(cookieString) {
-  return cookieString
+  // 允许只填裸 sessionid 值（例如 ~/.env 里存的就是纯值），自动补上 cookie 名。
+  const normalized = cookieString.includes("=")
+    ? cookieString
+    : `sessionid=${cookieString}`;
+
+  return normalized
     .split(";")
     .map((item) => item.trim())
     .filter(Boolean)
@@ -852,6 +857,7 @@ export {
   buildDefaultSummary,
   buildTelegramMessage,
   ensurePageHealthy,
+  parseCookieString,
   runFallbackNotification,
   runWorkflow,
   runWorkflowWithDependencies

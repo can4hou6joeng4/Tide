@@ -45,7 +45,7 @@ cron 09:14 (UTC+8) ─▶ GitHub Actions ─▶ Playwright 无头 Chromium(带�
 
 1. Fork 本仓库。
 2. 进入 `Settings -> Secrets and variables -> Actions`。
-3. 新建仓库 Secret:`JUEJIN_COOKIE`,粘贴浏览器登录掘金后的完整 Cookie。
+3. 新建仓库 Secret:`JUEJIN_COOKIE`,粘贴浏览器登录掘金后的完整 Cookie(也接受只填裸 `sessionid` 值,脚本会自动补齐前缀)。
 4. 如需 Telegram 通知,再新增两个 Secret:`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`。
 5. 群组话题场景可在 `Variables` 里新增 `TELEGRAM_MESSAGE_THREAD_ID`;需要自定义浏览器标识时再新增 `JUEJIN_USER_AGENT`。
 6. 进入 `Actions -> Juejin Daily Automation`,手动执行一次确认配置正确。
@@ -54,7 +54,7 @@ cron 09:14 (UTC+8) ─▶ GitHub Actions ─▶ Playwright 无头 Chromium(带�
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
-| `JUEJIN_COOKIE` | ✅ | 掘金登录态的完整 Cookie |
+| `JUEJIN_COOKIE` | ✅ | 掘金登录态的完整 Cookie;只填裸 `sessionid` 值时脚本会自动补上 `sessionid=` 前缀 |
 | `TELEGRAM_BOT_TOKEN` | 可选 | 启用通知时与 `TELEGRAM_CHAT_ID` 成对提供 |
 | `TELEGRAM_CHAT_ID` | 可选 | 同上 |
 | `TELEGRAM_MESSAGE_THREAD_ID` | 可选 | 仅发到 Telegram 群组话题时需要 |

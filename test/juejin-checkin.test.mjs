@@ -4,8 +4,35 @@ import {
   buildDefaultSummary,
   buildTelegramMessage,
   ensurePageHealthy,
+  parseCookieString,
   runWorkflowWithDependencies
 } from "../scripts/juejin-checkin.mjs";
+
+test("parseCookieString 接受裸 sessionid 值并自动补齐 cookie 名", () => {
+  assert.deepEqual(parseCookieString("0123456789abcdef0123456789abcdef"), [
+    {
+      name: "sessionid",
+      value: "0123456789abcdef0123456789abcdef",
+      domain: ".juejin.cn",
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax"
+    }
+  ]);
+});
+
+test("parseCookieString 保留完整 Cookie 串的多个键值", () => {
+  const cookies = parseCookieString("sessionid=abc; theme=dark");
+
+  assert.deepEqual(
+    cookies.map((item) => [item.name, item.value]),
+    [
+      ["sessionid", "abc"],
+      ["theme", "dark"]
+    ]
+  );
+});
 
 test("runWorkflowWithDependencies sends failure notification when check-in fails", async () => {
   const notifications = [];
